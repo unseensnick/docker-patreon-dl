@@ -1,0 +1,151 @@
+# .github/workflows/build-and-push.yml
+#
+# This workflow does two things:
+#
+# 1. SCHEDULED CHECK (every 6 hours):
+#    - Polls the upstream patreon-dl-gui repo for the latest release
+#    - Compares it against the last version we built (stored in a git tag)
+#    - If there's a new version, triggers a build
+#
+# 2. MANUAL TRIGGER:
+#    - You can also run it manually from the Actions tab with a specific version
+
+name: Build & Push Docker Image
+
+on:
+  # Check for new upstream releases every 6 hours
+  schedule:
+    - cron: "0 */6 * * *"
+
+  # Allow manual trigger with optional version override
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "patreon-dl-gui version to build (e.g. 2.7.0). Leave empty to auto-detect latest."
+        required: false
+        default: ""
+
+  # Also build when the Dockerfile itself changes
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+
+env:
+  DOCKERHUB_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/patreon-dl-gui
+  UPSTREAM_REPO: patrickkfkan/patreon-dl-gui
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history to check existing tags
+
+      - name: Determine version to build
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            # Manual trigger with explicit version
+            VERSION="${{ github.event.inputs.version }}"
+            echo "Source: manual input"
+          else
+            # Auto-detect latest upstream release
+            VERSION=$(curl -s https://api.github.com/repos/${{ env.UPSTREAM_REPO }}/releases/latest \
+              | jq -r '.tag_name' \
+              | sed 's/^v//')
+            echo "Source: upstream API"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
+
+          # Check if we already built this version
+          if git tag -l "built-v${VERSION}" | grep -q .; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Version ${VERSION} was already built (tag built-v${VERSION} exists). Skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "New version ${VERSION} — will build."
+          fi
+
+      - name: Verify upstream .deb asset exists
+        if: steps.version.outputs.skip == 'false'
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          URL="https://github.com/${{ env.UPSTREAM_REPO }}/releases/download/v${VERSION}/patreon-dl-gui_${VERSION}_amd64.deb"
+          echo "Checking: ${URL}"
+          HTTP_CODE=$(curl -sL -o /dev/null -w "%{http_code}" "${URL}")
+          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "302" ]; then
+            echo "ERROR: .deb asset not found (HTTP ${HTTP_CODE})"
+            exit 1
+          fi
+          echo "Asset confirmed (HTTP ${HTTP_CODE})"
+
+      - name: Set up Docker Buildx
+        if: steps.version.outputs.skip == 'false'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: steps.version.outputs.skip == 'false'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        if: steps.version.outputs.skip == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:${{ steps.version.outputs.version }}
+            ${{ env.DOCKERHUB_REPO }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tag this version as built
+        if: steps.version.outputs.skip == 'false'
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "built-v${VERSION}"
+          git push origin "built-v${VERSION}"
+
+      - name: Update Docker Hub description
+        if: steps.version.outputs.skip == 'false'
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_REPO }}
+          short-description: "patreon-dl-gui in Docker with noVNC web access"
+          readme-filepath: ./README.md
+        continue-on-error: true # Don't fail the build if description update fails
+
+      - name: Summary
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          SKIP=${{ steps.version.outputs.skip }}
+          if [ "${SKIP}" == "true" ]; then
+            echo "### ⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "Version **${VERSION}** was already built." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ Built & Pushed" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Image:** \`${{ env.DOCKERHUB_REPO }}:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Latest:** \`${{ env.DOCKERHUB_REPO }}:latest\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Pull it with:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "docker pull ${{ env.DOCKERHUB_REPO }}:latest" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi

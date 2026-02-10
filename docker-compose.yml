@@ -1,8 +1,14 @@
 services:
   patreon-dl-gui:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Pull the auto-built image from Docker Hub
+    # Replace YOUR_DOCKERHUB_USERNAME with your actual username
+    image: unseensnick/patreon-dl-gui:latest
+    
+    # Uncomment below to build locally instead of pulling from Docker Hub
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
     container_name: patreon-dl-gui
     hostname: patreon-dl-gui
 
@@ -13,7 +19,7 @@ services:
     # Adjust resolution to match your monitor for best results
     environment:
       - RESOLUTION=2560x1440   # Options: 1920x1080, 2560x1440, 3840x2160
-      - DPI=120                 # Increase to 120 or 144 for HiDPI displays
+      - DPI=120                # Increase to 120 or 144 for HiDPI displays
 
     volumes:
       - ./downloads:/downloads

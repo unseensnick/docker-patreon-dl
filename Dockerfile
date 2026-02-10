@@ -1,9 +1,10 @@
 # Dockerfile for patreon-dl-gui
-# Uses the official .deb package for a stable, production-ready build
+# VERSION is passed in by CI (e.g. "2.7.0") or defaults to latest known
+ARG VERSION=2.7.0
 
 FROM ubuntu:22.04
 
-# Prevent interactive prompts
+ARG VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies including good fonts and font rendering
@@ -67,12 +68,17 @@ RUN curl -fsSL https://deno.land/install.sh | sh \
     && mv /root/.deno/bin/deno /usr/local/bin/ \
     || echo "Deno installation skipped"
 
-# Download and install patreon-dl-gui
-RUN wget https://github.com/patrickkfkan/patreon-dl-gui/releases/download/v2.7.0/patreon-dl-gui_2.7.0_amd64.deb \
+# Download and install patreon-dl-gui (version driven by build arg)
+RUN wget https://github.com/patrickkfkan/patreon-dl-gui/releases/download/v${VERSION}/patreon-dl-gui_${VERSION}_amd64.deb \
     && apt-get update \
-    && apt-get install -y ./patreon-dl-gui_2.7.0_amd64.deb \
-    && rm patreon-dl-gui_2.7.0_amd64.deb \
+    && apt-get install -y ./patreon-dl-gui_${VERSION}_amd64.deb \
+    && rm patreon-dl-gui_${VERSION}_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
+
+# Bake the version into the image as a label and env var
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.source="https://github.com/patrickkfkan/patreon-dl-gui"
+ENV PATREON_DL_GUI_VERSION=${VERSION}
 
 # Create directories
 RUN mkdir -p /downloads /app-data
@@ -238,8 +244,9 @@ RUN cat > /start.sh <<'STARTSCRIPT'
 set -e
 
 echo "============================================"
-echo "Patreon-DL-GUI Docker Container Starting"
-echo "Resolution: ${RESOLUTION} @ ${DPI} DPI"
+echo "Patreon-DL-GUI Docker Container"
+echo "App Version: ${PATREON_DL_GUI_VERSION}"
+echo "Resolution:  ${RESOLUTION} @ ${DPI} DPI"
 echo "============================================"
 
 cleanup() {
