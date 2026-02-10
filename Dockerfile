@@ -81,7 +81,7 @@ LABEL org.opencontainers.image.source="https://github.com/patrickkfkan/patreon-d
 ENV PATREON_DL_GUI_VERSION=${VERSION}
 
 # Create directories
-RUN mkdir -p /downloads /app-data
+RUN mkdir -p /downloads /appdata
 
 # Create custom noVNC landing page with auto-connect and sharp scaling
 RUN cat > /usr/share/novnc/index.html <<'HTMLEOF'
@@ -367,6 +367,6 @@ RUN chmod +x /start.sh
 
 EXPOSE 5900 6080
 
-VOLUME ["/downloads", "/app-data"]
+VOLUME ["/downloads", "/appdata"]
 
 CMD ["/start.sh"]

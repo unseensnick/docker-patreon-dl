@@ -23,7 +23,7 @@ services:
 
     volumes:
       - ./downloads:/downloads
-      - ./app-data:/app-data
+      - ./appdata:/appdata
 
     security_opt:
       - seccomp:unconfined

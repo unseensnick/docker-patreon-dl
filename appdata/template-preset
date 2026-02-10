@@ -1,0 +1,89 @@
+[downloader]
+target.url = https://www.patreon.com/solargirlasmr/posts
+cookie = "a_csrf=-wplKSrqOIH9c1I4Yvhgtmx1CdA_YKcEbkSroBRpvaw; patreon_device_id=2626e7ff-69ed-430c-9986-dd3d29491df8; __cf_bm=WaDhCgJDma96FEW.7qaY7Ym3tfVGjnCVc4v7FhWj9Jk-1770731342-1.0.1.1-riJMx0T7gDBA6JfHPGbXsgZMlWCXAaBJdJE6C5T2wvJiKSovpw7T3_Y_.Ee.MbApeqdgbylzPLte5tt1qEZgnph0SLMO1j1g8ZsxPmSIm1fxtAyYTPOFj3dqNHM7jz2p; _cfuvid=Hl.msytKZ.LaTK0X1f8V1cUv0D3jcjInJKrDCQILLV4-1770731342480-0.0.1.1-604800000"
+use.status.cache = 1
+stop.on = publishDateOutOfRange
+no.prompt = 0
+dry.run = 0
+path.to.ffmpeg = /usr/bin/ffmpeg
+path.to.deno = 
+max.video.resolution = 
+
+[output]
+out.dir = /downloads
+campaign.dir.name.format = {campaign.name}
+content.dir.name.format = "{content.name} - {content.id}"
+media.filename.format = {media.filename}
+content.file.exists.action = skip
+info.file.exists.action = saveAsCopyIfNewer
+info.api.file.exists.action = overwrite
+
+[include]
+locked.content = 1
+posts.in.tier = any
+posts.with.media.type = any
+posts.published.after = 
+posts.published.before = 
+products.published.after = 
+products.published.before = 
+campaign.info = 0
+content.info = 0
+content.media = 1
+preview.media = 1
+all.media.variants = 0
+media.thumbnails = 1
+images.by.filename = 
+audio.by.filename = 
+attachments.by.filename = 
+comments = 0
+
+[request]
+max.retries = 3
+max.concurrent = 10
+min.time = 333
+proxy.url = 
+proxy.reject.unauthorized.tls = 1
+user.agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.7339.41 Electron/38.0.0 Safari/537.36"
+
+[embed.downloader.youtube]
+exec = 
+
+[embed.downloader.vimeo]
+exec = 
+
+[embed.downloader.sproutvideo]
+exec = 
+
+[logger.console]
+enabled = 1
+log.level = info
+include.date.time = 1
+include.level = 1
+include.originator = 1
+include.error.stack = 0
+date.time.format = "mmm dd HH:MM:ss"
+color = 1
+
+[logger.file.1]
+enabled = 0
+log.dir = {out.dir}/logs/{target.url.path}
+log.filename = {datetime.yyyymmdd}-{log.level}.log
+file.exists.action = append
+log.level = info
+include.date.time = 1
+include.level = 1
+include.originator = 1
+include.error.stack = 0
+date.time.format = "mmm dd HH:MM:ss"
+color = 0
+
+[patreon.dl.gui]
+connect.youtube = 0
+vimeo.downloader.type = custom
+vimeo.helper.ytdlp.path = 
+vimeo.helper.password = 
+vimeo.helper.ytdlp.args = 
+sproutvideo.downloader.type = custom
+sproutvideo.helper.ytdlp.path = 
+sproutvideo.helper.password = 
+sproutvideo.helper.ytdlp.args = 
