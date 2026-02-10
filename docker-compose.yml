@@ -1,64 +1,31 @@
 services:
-  # GUI Application with VNC server
   patreon-dl-gui:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: patreon-dl-gui
     hostname: patreon-dl-gui
-    
-    # Expose VNC port for direct VNC client access
-    ports:
-      - "5900:5900"  # VNC port
-    
-    # Persistent storage
-    volumes:
-      # Downloaded content
-      - ./downloads:/downloads
-      # Application data (configs, cookies, etc.)
-      - ./app-data:/app-data
-    
-    # Security settings
-    security_opt:
-      - seccomp:unconfined  # Required for Electron's sandboxing
-    
-    # Shared memory (helps with Chrome/Electron performance)
-    shm_size: '2gb'
-    
-    # Restart policy
-    restart: "no"
-    
-    # Resource limits (adjust as needed)
-    mem_limit: 4g
-    cpus: 2.0
-    
-    # Network
-    networks:
-      - patreon-dl-network
 
-  # Web-based VNC client (noVNC) - Access GUI via browser
-  novnc:
-    image: geek1011/easy-novnc:latest
-    container_name: patreon-dl-novnc
-    hostname: novnc
-    
-    environment:
-      # Point to the VNC server (patreon-dl-gui)
-      - DISPLAY_NUM=99
-      - VNC_HOST=patreon-dl-gui
-      - VNC_PORT=5900
-      - NOVNC_PORT=8080
-      - NOVNC_TITLE=Patreon-DL GUI
-    
     ports:
-      # Access via browser at http://localhost:8080
-      - "8080:8080"
-    
-    depends_on:
-      - patreon-dl-gui
-    
-    restart: unless-stopped
-    
+      - "5900:5900"   # VNC direct access
+      - "6080:6080"   # noVNC web access → http://localhost:6080
+
+    # Adjust resolution to match your monitor for best results
+    environment:
+      - RESOLUTION=2560x1440   # Options: 1920x1080, 2560x1440, 3840x2160
+      - DPI=120                 # Increase to 120 or 144 for HiDPI displays
+
+    volumes:
+      - ./downloads:/downloads
+      - ./app-data:/app-data
+
+    security_opt:
+      - seccomp:unconfined
+
+    shm_size: '4gb'
+    restart: "no"
+    mem_limit: 8g
+    cpus: 4.0
     networks:
       - patreon-dl-network
 
