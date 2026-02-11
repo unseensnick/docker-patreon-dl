@@ -3,13 +3,24 @@
 # Builds and pushes the Docker image to Docker Hub.
 #
 # Triggers:
-#   1. RELEASE — Create a GitHub release (tag like v2.7.0) to build that version
-#   2. MANUAL  — Run from the Actions tab with an optional version override
-#   3. PUSH    — Automatically rebuilds when the Dockerfile changes on main
+#   1. SCHEDULE — Poll upstream releases for updates
+#   2. RELEASE  — Create a GitHub release (tag like v2.7.0) to build that version
+#   3. MANUAL   — Run from the Actions tab with an optional version override
+#   4. PUSH     — Automatically rebuilds when the Dockerfile changes on main
+#
+# Version selection priority:
+#   1. Upstream latest release (if not built yet)
+#   2. Release tag
+#   3. Manual input
+#   4. Dockerfile ARG VERSION
 
 name: Build & Push Docker Image
 
 on:
+  # Poll upstream repo for new releases
+  schedule:
+    - cron: "0 0 * * *"
+
   # Build when a new release is published in this repo
   release:
     types: [published]
@@ -47,24 +58,48 @@ jobs:
       - name: Determine version to build
         id: version
         run: |
-          if [ "${{ github.event_name }}" == "release" ]; then
-            # Release trigger — extract version from tag (strip leading v)
+          # 1) Always check upstream latest release first
+          UPSTREAM_VERSION=$(curl -fsSL "https://api.github.com/repos/${{ env.UPSTREAM_REPO }}/releases/latest" \
+            | jq -r '.tag_name' \
+            | sed 's/^v//')
+
+          if [ -z "${UPSTREAM_VERSION}" ] || [ "${UPSTREAM_VERSION}" = "null" ]; then
+            echo "ERROR: Could not determine upstream latest version."
+            exit 1
+          fi
+
+          if ! git tag -l "built-v${UPSTREAM_VERSION}" | grep -q .; then
+            VERSION="${UPSTREAM_VERSION}"
+            SOURCE="upstream latest release (new)"
+          elif [ "${{ github.event_name }}" == "release" ]; then
+            # 2) Release trigger fallback — extract version from tag (strip leading v)
             VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
-            echo "Source: release tag"
+            SOURCE="release tag"
           elif [ -n "${{ github.event.inputs.version }}" ]; then
-            # Manual trigger with explicit version
+            # 3) Manual trigger fallback with explicit version
             VERSION="${{ github.event.inputs.version }}"
-            echo "Source: manual input"
+            SOURCE="manual input"
           else
-            # Push trigger — read default VERSION from Dockerfile ARG
+            # 4) Final fallback — read default VERSION from Dockerfile ARG
             VERSION=$(grep -m1 '^ARG VERSION=' Dockerfile | cut -d= -f2)
-            echo "Source: Dockerfile ARG"
+            SOURCE="Dockerfile ARG"
+          fi
+
+          if git tag -l "built-v${VERSION}" | grep -q .; then
+            SKIP="true"
+          else
+            SKIP="false"
           fi
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "source=${SOURCE}" >> "$GITHUB_OUTPUT"
+          echo "skip=${SKIP}" >> "$GITHUB_OUTPUT"
           echo "Building version: ${VERSION}"
+          echo "Version source: ${SOURCE}"
+          echo "Skip build: ${SKIP}"
 
       - name: Verify upstream .deb asset exists
+        if: steps.version.outputs.skip != 'true'
         run: |
           VERSION=${{ steps.version.outputs.version }}
           URL="https://github.com/${{ env.UPSTREAM_REPO }}/releases/download/v${VERSION}/patreon-dl-gui_${VERSION}_amd64.deb"
@@ -77,15 +112,18 @@ jobs:
           echo "Asset confirmed (HTTP ${HTTP_CODE})"
 
       - name: Set up Docker Buildx
+        if: steps.version.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
+        if: steps.version.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push image
+        if: steps.version.outputs.skip != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -100,6 +138,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Tag build version
+        if: steps.version.outputs.skip != 'true'
         run: |
           VERSION=${{ steps.version.outputs.version }}
           TAG="built-v${VERSION}"
@@ -115,6 +154,7 @@ jobs:
           fi
 
       - name: Update Docker Hub description
+        if: steps.version.outputs.skip != 'true'
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -127,13 +167,24 @@ jobs:
       - name: Summary
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          echo "### Built & Pushed" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** \`${{ env.DOCKERHUB_REPO }}:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Latest:** \`${{ env.DOCKERHUB_REPO }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Pull it with:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.DOCKERHUB_REPO }}:latest" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          SOURCE=${{ steps.version.outputs.source }}
+          SKIP=${{ steps.version.outputs.skip }}
+          if [ "${SKIP}" = "true" ]; then
+            echo "### Skipped (already built)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version source:** ${SOURCE}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Reason:** Tag \`built-v${VERSION}\` already exists" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Built & Pushed" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version source:** ${SOURCE}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Image:** \`${{ env.DOCKERHUB_REPO }}:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Latest:** \`${{ env.DOCKERHUB_REPO }}:latest\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Pull it with:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "docker pull ${{ env.DOCKERHUB_REPO }}:latest" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
