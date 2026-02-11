@@ -1,33 +1,50 @@
 services:
   patreon-dl-gui:
     image: unseensnick/patreon-dl-gui:latest
-    # build: .                     # uncomment to build locally
+    # build:
+    #   context: .
+    #   args:
+    #     VERSION: 2.7.0
     container_name: patreon-dl-gui
     restart: unless-stopped
 
     ports:
-      - "5900:5900"
-      - "6080:6080"
+      - "127.0.0.1:${VNC_PORT:-5900}:5900"      # VNC - localhost only
+      - "127.0.0.1:${NOVNC_PORT:-6080}:6080"     # noVNC web - localhost only
 
     environment:
-      - RESOLUTION=2560x1440       # 1920x1080, 2560x1440, 3840x2160
-      - DPI=120                    # 96, 120, 144
-      # - COLOR_DEPTH=24           # 16 (less bandwidth), 24 (full color)
-      # - VNC_PASSWORD=            # empty = no password
-      # - TZ=UTC                   # e.g. America/New_York, Europe/London
-      # - FFMPEG_PATH=/usr/bin/ffmpeg
-      # - YTDLP_PATH=/usr/local/bin/yt-dlp
-      # - DENO_PATH=/usr/local/bin/deno
+      - RESOLUTION=${RESOLUTION:-1920x1080}
+      - DPI=${DPI:-96}
+      - COLOR_DEPTH=${COLOR_DEPTH:-24}
+      - VNC_PASSWORD=${VNC_PASSWORD:-}
+      - TZ=${TZ:-UTC}
+      - FFMPEG_PATH=${FFMPEG_PATH:-/usr/bin/ffmpeg}
+      - YTDLP_PATH=${YTDLP_PATH:-/usr/local/bin/yt-dlp}
+      - DENO_PATH=${DENO_PATH:-/usr/local/bin/deno}
 
     volumes:
-      - ./downloads:/downloads
+      - ./downloads:/downloads:rw,noexec,nosuid
       - ./appdata:/appdata
 
     security_opt:
       - seccomp:unconfined
-    shm_size: '4gb'
-    mem_limit: 8g
-    cpus: 4.0
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_CHROOT
+      - NET_BIND_SERVICE
+
+    pids_limit: ${PIDS_LIMIT:-512}
+
+    tmpfs:
+      - /tmp:size=2g,noexec,nosuid,nodev
+      - /var/tmp:size=1g,noexec,nosuid,nodev
+
+    shm_size: '${SHM_SIZE:-4gb}'
+    mem_limit: ${MEM_LIMIT:-4g}
+    cpus: ${CPUS:-4.0}
     networks:
       - patreon-dl-network
 

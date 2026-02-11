@@ -4,6 +4,8 @@ Docker image for [patreon-dl-gui](https://github.com/patrickkfkan/patreon-dl-gui
 
 Runs the Electron-based patreon-dl-gui application inside a headless container and exposes it over VNC (port 5900) and a web interface (port 6080). All required tools (ffmpeg, yt-dlp, Deno) are pre-installed.
 
+> **Recommended:** For the best experience, use a dedicated VNC client like [RealVNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) instead of the noVNC web interface. A native VNC client provides sharper rendering, working clipboard (copy/paste), and better input handling. The noVNC web interface works for quick access but has limitations with clipboard and text clarity due to browser canvas scaling.
+
 ## What It Downloads
 
 - Posts by a creator, in a collection, or a single post (including patron-only content with an active subscription)
@@ -21,7 +23,7 @@ cd docker-patreon-dl
 docker-compose up -d
 ```
 
-Open http://localhost:6080 in your browser.
+Open http://localhost:6080 in your browser, or connect with a VNC client to `localhost:5900`.
 
 ### Using Docker Run
 
@@ -38,8 +40,8 @@ docker run --rm -it \
 
 ## Usage
 
-1. Open the noVNC web interface at http://localhost:6080
-2. Load the `template-preset` from `/appdata` to populate the ffmpeg, Deno, and yt-dlp paths in the GUI. Without this, those fields will be empty on a fresh start.
+1. Connect via VNC client at `localhost:5900` (recommended) or open `http://localhost:6080` in your browser.
+2. Load the `template-preset` to populate the ffmpeg, Deno, and yt-dlp paths in the GUI. To do this, click the **folder icon** in the toolbar, then click **"/"** in the file browser to navigate to the root, and select the **appdata** folder. Without loading a preset, tool path fields will be empty on a fresh start.
 3. In the embedded browser within patreon-dl-gui, navigate to the Patreon page you want to download from. Log in if downloading patron-only content.
 4. The app identifies downloadable targets automatically and shows them in the editor panel with the required cookie data.
 5. Configure download options as needed (use Help menu > "Show Help Icons" for option descriptions).
@@ -74,9 +76,17 @@ docker build -t patreon-dl-gui .
 docker build --build-arg VERSION=2.7.0 -t patreon-dl-gui .
 ```
 
-To build locally with docker-compose, uncomment the `build` line in `docker-compose.yml`.
+To build locally with docker-compose, the `build` section is already included in `docker-compose.yml`.
 
 ## Configuration
+
+All settings can be customized via a `.env` file. Copy the template and edit as needed:
+
+```bash
+cp .env.template .env
+```
+
+Without a `.env` file, all defaults apply automatically.
 
 ### Environment Variables
 
@@ -85,11 +95,24 @@ To build locally with docker-compose, uncomment the `build` line in `docker-comp
 | `RESOLUTION` | `1920x1080` | Virtual display resolution (`1920x1080`, `2560x1440`, `3840x2160`, etc.) |
 | `DPI` | `96` | Display DPI. Increase to `120` or `144` for sharper text on HiDPI displays |
 | `COLOR_DEPTH` | `24` | Display color depth. Set to `16` to reduce VNC bandwidth on slow connections |
+| `VNC_PORT` | `5900` | Host port for VNC connections |
+| `NOVNC_PORT` | `6080` | Host port for noVNC web interface |
 | `VNC_PASSWORD` | *(empty)* | Set to require a password for VNC/noVNC access. Empty = no password |
 | `TZ` | `UTC` | Container timezone (e.g. `America/New_York`, `Europe/London`) |
 | `FFMPEG_PATH` | `/usr/bin/ffmpeg` | Path to ffmpeg binary |
 | `YTDLP_PATH` | `/usr/local/bin/yt-dlp` | Path to yt-dlp binary |
 | `DENO_PATH` | `/usr/local/bin/deno` | Path to deno binary |
+
+### Resource Limits
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SHM_SIZE` | `4gb` | Shared memory for Electron/Chromium. Too low causes crashes or blank pages |
+| `MEM_LIMIT` | `4g` | Container memory cap |
+| `CPUS` | `4.0` | CPU core limit |
+| `PIDS_LIMIT` | `512` | Max number of processes (fork bomb protection) |
+
+Adjust these based on your system. Lower-spec setups can reduce these values.
 
 ### Volumes
 
@@ -97,6 +120,20 @@ To build locally with docker-compose, uncomment the `build` line in `docker-comp
 |---------------|---------|
 | `/downloads` | Download output directory |
 | `/appdata` | Preset configuration files |
+
+### Security Hardening
+
+The container runs with the following security measures by default:
+
+- **Capability restrictions** — All Linux capabilities dropped except `SYS_CHROOT` (Electron sandbox) and `NET_BIND_SERVICE`
+- **No privilege escalation** — `no-new-privileges` prevents setuid/capability inheritance
+- **Process limit** — `pids_limit` caps processes at 512
+- **Tmpfs restrictions** — `/tmp` and `/var/tmp` mounted with `noexec,nosuid,nodev`
+- **Volume restrictions** — `/downloads` mounted with `noexec,nosuid`
+- **Localhost-only ports** — VNC and noVNC bound to `127.0.0.1`, not exposed to network
+- **Isolated network** — Dedicated bridge network
+
+> Note: `seccomp:unconfined` is required for Electron/Chromium to function inside Docker.
 
 ### Presets
 
@@ -123,18 +160,13 @@ Key preset sections:
 
 | Port | Protocol | Description |
 |------|----------|-------------|
-| 5900 | VNC | Direct VNC client connection |
+| 5900 | VNC | Direct VNC client connection (recommended) |
 | 6080 | HTTP | noVNC web interface |
-
-## Resource Recommendations
-
-The `docker-compose.yml` is configured with:
-- `shm_size: 4gb` — shared memory for the Electron app
-- `mem_limit: 8g` — memory cap
-- `cpus: 4.0` — CPU limit
-
-Adjust these based on your system. Lower-spec setups can reduce these values.
 
 ## Automated Builds
 
-A GitHub Actions workflow checks the upstream [patreon-dl-gui releases](https://github.com/patrickkfkan/patreon-dl-gui/releases) daily and automatically builds and pushes a new Docker image to Docker Hub when a new version is detected.
+A GitHub Actions workflow builds and pushes Docker images to Docker Hub. It triggers on:
+
+- **Release** — Create a [GitHub release](../../releases/new) with a tag like `v2.7.0` to build that version
+- **Dockerfile push** — Automatically rebuilds when the Dockerfile changes on main
+- **Manual** — Run from the Actions tab with an optional version override

@@ -1,5 +1,5 @@
 [downloader]
-target.url = https://www.patreon.com/solargirlasmr/posts
+target.url = https://www.patreon.com/
 cookie = "a_csrf=-wplKSrqOIH9c1I4Yvhgtmx1CdA_YKcEbkSroBRpvaw; patreon_device_id=2626e7ff-69ed-430c-9986-dd3d29491df8; __cf_bm=WaDhCgJDma96FEW.7qaY7Ym3tfVGjnCVc4v7FhWj9Jk-1770731342-1.0.1.1-riJMx0T7gDBA6JfHPGbXsgZMlWCXAaBJdJE6C5T2wvJiKSovpw7T3_Y_.Ee.MbApeqdgbylzPLte5tt1qEZgnph0SLMO1j1g8ZsxPmSIm1fxtAyYTPOFj3dqNHM7jz2p; _cfuvid=Hl.msytKZ.LaTK0X1f8V1cUv0D3jcjInJKrDCQILLV4-1770731342480-0.0.1.1-604800000"
 use.status.cache = 1
 stop.on = publishDateOutOfRange
@@ -79,11 +79,11 @@ color = 0
 
 [patreon.dl.gui]
 connect.youtube = 0
-vimeo.downloader.type = custom
+vimeo.downloader.type = helper
 vimeo.helper.ytdlp.path = /usr/local/bin/yt-dlp
 vimeo.helper.password =
 vimeo.helper.ytdlp.args =
-sproutvideo.downloader.type = custom
+sproutvideo.downloader.type = helper
 sproutvideo.helper.ytdlp.path = /usr/local/bin/yt-dlp
 sproutvideo.helper.password = 
 sproutvideo.helper.ytdlp.args = 

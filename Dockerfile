@@ -150,7 +150,7 @@ RUN cat > /usr/share/novnc/index.html <<'HTMLEOF'
     <div id="loading">Connecting to desktop...</div>
     <div id="toolbar">
         <button id="btn-scale" class="active" title="Toggle scaling mode">Fit</button>
-        <button id="btn-quality" class="active" title="Toggle quality">Sharp</button>
+        <button id="btn-quality" class="active" title="Toggle quality">Smooth</button>
         <button id="btn-fullscreen" title="Fullscreen">&#x26F6;</button>
     </div>
     <div id="screen"></div>
@@ -165,7 +165,7 @@ RUN cat > /usr/share/novnc/index.html <<'HTMLEOF'
         const loading = document.getElementById('loading');
         let rfb;
         let scaleMode = 'scale';
-        let qualityMode = 'sharp';
+        let qualityMode = 'smooth';
 
         function connect() {
             rfb = new RFB(document.getElementById('screen'), url, {});
@@ -381,7 +381,8 @@ echo "       Launching..."
 exec "$APP_PATH" --no-sandbox --force-device-scale-factor=1
 STARTSCRIPT
 
-RUN chmod +x /start.sh
+# Fix line endings (Windows CRLF -> Unix LF)
+RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
 EXPOSE 5900 6080
 
