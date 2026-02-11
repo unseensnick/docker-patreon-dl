@@ -1,25 +1,23 @@
 services:
   patreon-dl-gui:
-    # Pull the auto-built image from Docker Hub
-    # Replace YOUR_DOCKERHUB_USERNAME with your actual username
     image: unseensnick/patreon-dl-gui:latest
-    
-    # Uncomment below to build locally instead of pulling from Docker Hub
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-
+    # build: .                     # uncomment to build locally
     container_name: patreon-dl-gui
-    hostname: patreon-dl-gui
+    restart: unless-stopped
 
     ports:
-      - "5900:5900"   # VNC direct access
-      - "6080:6080"   # noVNC web access → http://localhost:6080
+      - "5900:5900"
+      - "6080:6080"
 
-    # Adjust resolution to match your monitor for best results
     environment:
-      - RESOLUTION=2560x1440   # Options: 1920x1080, 2560x1440, 3840x2160
-      - DPI=120                # Increase to 120 or 144 for HiDPI displays
+      - RESOLUTION=2560x1440       # 1920x1080, 2560x1440, 3840x2160
+      - DPI=120                    # 96, 120, 144
+      # - COLOR_DEPTH=24           # 16 (less bandwidth), 24 (full color)
+      # - VNC_PASSWORD=            # empty = no password
+      # - TZ=UTC                   # e.g. America/New_York, Europe/London
+      # - FFMPEG_PATH=/usr/bin/ffmpeg
+      # - YTDLP_PATH=/usr/local/bin/yt-dlp
+      # - DENO_PATH=/usr/local/bin/deno
 
     volumes:
       - ./downloads:/downloads
@@ -27,9 +25,7 @@ services:
 
     security_opt:
       - seccomp:unconfined
-
     shm_size: '4gb'
-    restart: "no"
     mem_limit: 8g
     cpus: 4.0
     networks:

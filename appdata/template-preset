@@ -6,7 +6,7 @@ stop.on = publishDateOutOfRange
 no.prompt = 0
 dry.run = 0
 path.to.ffmpeg = /usr/bin/ffmpeg
-path.to.deno = 
+path.to.deno = /usr/local/bin/deno
 max.video.resolution = 
 
 [output]
@@ -80,10 +80,10 @@ color = 0
 [patreon.dl.gui]
 connect.youtube = 0
 vimeo.downloader.type = custom
-vimeo.helper.ytdlp.path = 
-vimeo.helper.password = 
-vimeo.helper.ytdlp.args = 
+vimeo.helper.ytdlp.path = /usr/local/bin/yt-dlp
+vimeo.helper.password =
+vimeo.helper.ytdlp.args =
 sproutvideo.downloader.type = custom
-sproutvideo.helper.ytdlp.path = 
+sproutvideo.helper.ytdlp.path = /usr/local/bin/yt-dlp
 sproutvideo.helper.password = 
 sproutvideo.helper.ytdlp.args = 

@@ -15,7 +15,7 @@ name: Build & Push Docker Image
 on:
   # Check for new upstream releases every 6 hours
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 0 * * *"
 
   # Allow manual trigger with optional version override
   workflow_dispatch:
@@ -38,6 +38,8 @@ env:
 jobs:
   check-and-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository

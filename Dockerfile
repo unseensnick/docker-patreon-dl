@@ -7,6 +7,11 @@ FROM ubuntu:22.04
 ARG VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Tool paths (centralized so install commands and presets stay consistent)
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV YTDLP_PATH=/usr/local/bin/yt-dlp
+ENV DENO_PATH=/usr/local/bin/deno
+
 # Install system dependencies including good fonts and font rendering
 RUN apt-get update && apt-get install -y \
     wget \
@@ -22,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     novnc \
     websockify \
     net-tools \
+    tzdata \
     # Font packages for sharp text rendering
     fonts-liberation \
     fonts-dejavu-core \
@@ -60,12 +66,12 @@ EOF
 RUN fc-cache -fv
 
 # Install yt-dlp
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
-    && chmod a+rx /usr/local/bin/yt-dlp
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ${YTDLP_PATH} \
+    && chmod a+rx ${YTDLP_PATH}
 
 # Install Deno (optional)
 RUN curl -fsSL https://deno.land/install.sh | sh \
-    && mv /root/.deno/bin/deno /usr/local/bin/ \
+    && mv /root/.deno/bin/deno ${DENO_PATH} \
     || echo "Deno installation skipped"
 
 # Download and install patreon-dl-gui (version driven by build arg)
@@ -234,9 +240,12 @@ HTMLEOF
 ENV DISPLAY=:99
 ENV ELECTRON_DISABLE_SECURITY_WARNINGS=true
 
-# Configurable resolution and DPI via environment variables
+# Configurable display settings
 ENV RESOLUTION=1920x1080
 ENV DPI=96
+ENV COLOR_DEPTH=24
+ENV VNC_PASSWORD=
+ENV TZ=UTC
 
 # Create startup script
 RUN cat > /start.sh <<'STARTSCRIPT'
@@ -246,7 +255,12 @@ set -e
 echo "============================================"
 echo "Patreon-DL-GUI Docker Container"
 echo "App Version: ${PATREON_DL_GUI_VERSION}"
-echo "Resolution:  ${RESOLUTION} @ ${DPI} DPI"
+echo "Resolution:  ${RESOLUTION}x${COLOR_DEPTH} @ ${DPI} DPI"
+echo "Timezone:    ${TZ}"
+echo "VNC Password: $([ -n "$VNC_PASSWORD" ] && echo 'set' || echo 'none')"
+echo "ffmpeg:      ${FFMPEG_PATH}"
+echo "yt-dlp:      ${YTDLP_PATH}"
+echo "deno:        ${DENO_PATH}"
 echo "============================================"
 
 cleanup() {
@@ -264,8 +278,8 @@ trap cleanup SIGTERM SIGINT EXIT
 rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
 
 # Start Xvfb with configurable resolution and DPI
-echo "[1/6] Starting virtual display (${RESOLUTION}x24 @ ${DPI} DPI)..."
-Xvfb :99 -screen 0 ${RESOLUTION}x24 -dpi ${DPI} -ac +extension GLX +extension RENDER -noreset &
+echo "[1/6] Starting virtual display (${RESOLUTION}x${COLOR_DEPTH} @ ${DPI} DPI)..."
+Xvfb :99 -screen 0 ${RESOLUTION}x${COLOR_DEPTH} -dpi ${DPI} -ac +extension GLX +extension RENDER -noreset &
 XVFB_PID=$!
 
 # Wait for X server
@@ -299,11 +313,15 @@ sleep 1
 
 # Start VNC server with optimized settings
 echo "[4/6] Starting VNC server on port 5900..."
+VNC_AUTH="-nopw"
+if [ -n "$VNC_PASSWORD" ]; then
+    VNC_AUTH="-passwd $VNC_PASSWORD"
+fi
 x11vnc -display :99 \
     -forever \
     -shared \
     -rfbport 5900 \
-    -nopw \
+    $VNC_AUTH \
     -noxdamage \
     -cursor arrow \
     -noxfixes \
