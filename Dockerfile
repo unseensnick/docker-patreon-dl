@@ -158,9 +158,8 @@ RUN cat > /usr/share/novnc/index.html <<'HTMLEOF'
     <script type="module">
         import RFB from './core/rfb.js';
 
-        const host = window.location.hostname;
-        const port = window.location.port || 6080;
-        const url = `ws://${host}:${port}/websockify`;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${window.location.host}/websockify`;
 
         const loading = document.getElementById('loading');
         let rfb;
